@@ -78,7 +78,7 @@ Les sessions navigateur sont stockées dans PostgreSQL et expirent après huit h
 
 **Sécurité et limites :** connaître l’e-mail seul ne suffit pas pour se reconnecter. Les mots de passe sont hachés avec scrypt. Les domaines configurés sont contrôlés à l’inscription, mais aucun e-mail de vérification n’est envoyé : l’identité reste déclarative. Ne jamais demander le mot de passe universitaire. Il n’existe pas encore de récupération de mot de passe par e-mail. Les anciens bilans sans compte ne sont pas automatiquement revendiqués par une inscription utilisant le même e-mail. Le mode direct est non noté.
 
-La migration additive `003_live_classrooms.sql` s’applique au démarrage, sans supprimer les réponses existantes. Aucune nouvelle variable ni dépendance n’est nécessaire. Après sauvegarde habituelle de la base, mettre à jour l’application avec `docker compose -p ihme up -d --build --no-deps --wait app`. Ne pas supprimer le volume PostgreSQL. La configuration sous `/ihme` reste valable.
+La migration additive `003_live_classrooms.sql` s’applique au démarrage, sans supprimer les réponses existantes. Aucune nouvelle variable ni dépendance n’est nécessaire. Après sauvegarde habituelle de la base, mettre à jour l’application avec `docker compose -p ihme up -d --build --no-deps --wait app`. Avec Caddy dans un projet séparé sur le réseau `proxy`, ajouter `-f compose.yaml -f compose.proxy.yaml` comme indiqué dans la section d’installation sous `/ihme`. Ne pas supprimer le volume PostgreSQL. La configuration sous `/ihme` reste valable.
 
 La purge utilise `RETENTION_DAYS` (90 par défaut) : comptes sans connexion/lecture du profil depuis ce délai, séances dépassant ce délai et réponses anciennes. Une séance supprimée entraîne la suppression de ses réponses même si un étudiant s’est reconnecté récemment. Consultez le diagramme pour les cascades exactes.
 
@@ -186,18 +186,30 @@ UNIVERSITY_EMAIL_DOMAINS=etu.univ-amu.fr,univ-amu.fr
 
 Si Caddy est le proxy de confiance qui contacte directement Express, régler `TRUST_PROXY=1`. Si le trajet diffère, déterminer ce réglage avant l’ouverture publique. Le dernier proxy doit transmettre correctement le protocole HTTPS d’origine ; les cookies sécurisés ne seront pas créés si Express ne reconnaît pas HTTPS. Ne pas ouvrir un accès direct non filtré qui permettrait d’usurper les en-têtes de proxy.
 
-Construire et recréer uniquement l’application, sans arrêter les autres projets ni recréer la base :
+Avec Caddy dans son propre projet sur le réseau Docker existant `proxy`, utiliser le complément [compose.proxy.yaml](compose.proxy.yaml). Il raccorde uniquement l’application à ce réseau, avec l’alias stable `ihme-app`, tout en conservant son accès à la base sur le réseau par défaut. PostgreSQL n’est pas raccordé à `proxy`. Vérifier que le réseau existe avec `docker network inspect proxy` ; ne pas recréer le projet Caddy.
+
+Construire et recréer uniquement l’application, sans arrêter les autres projets ni recréer la base (déjà démarrée) :
 
 ```sh
 cd /home/ihme
 git pull --ff-only origin main
-docker compose -p ihme config --quiet
-docker compose -p ihme up -d --build --no-deps --wait app
-docker compose -p ihme ps
+docker compose -p ihme -f compose.yaml -f compose.proxy.yaml config --quiet
+docker compose -p ihme -f compose.yaml -f compose.proxy.yaml up -d --build --no-deps --wait app
+docker compose -p ihme -f compose.yaml -f compose.proxy.yaml ps
 curl --fail http://127.0.0.1:43187/ihme/api/health
 ```
 
-L’enseignant gère la configuration de Caddy séparément. Le contrat attendu est de transmettre `/ihme/…` à l’application **sans supprimer le préfixe**. Un routage qui retire `/ihme` serait incompatible. `/ihme` redirige vers `/ihme/` ; l’espace enseignant est sous `/ihme/enseignant`. Si nécessaire, le proxy peut effectuer lui-même la redirection de l’adresse sans barre finale.
+Conserver les deux options `-f` pour les prochains déploiements : une recréation avec le seul fichier principal retire le raccordement au réseau partagé. Le lancement local habituel reste inchangé et ne nécessite pas le réseau `proxy`.
+
+L’enseignant gère la configuration de Caddy séparément. Sa cible interne doit être `ihme-app:3000`, pas `127.0.0.1:43187`. Le contrat attendu est de transmettre `/ihme/…` à l’application **sans supprimer le préfixe** (`handle`, pas `handle_path`). Un routage qui retire `/ihme` serait incompatible. `/ihme` redirige vers `/ihme/` ; l’espace enseignant est sous `/ihme/enseignant`. Si nécessaire, le proxy peut effectuer lui-même la redirection de l’adresse sans barre finale.
+
+Pour rétablir temporairement le raccordement d’un conteneur existant sans le recréer, exécuter sur le serveur `docker network connect --alias ihme-app proxy ihme-app-1`, uniquement s’il n’est pas déjà raccordé. Cette modification manuelle ne remplace pas le complément Compose pour les recréations futures. Si l’image Caddy contient `wget`, vérifier depuis son conteneur :
+
+```sh
+docker exec caddy-csb wget -qO- http://ihme-app:3000/ihme/api/health
+```
+
+Le résultat attendu est `{"status":"ok"}`. Si le contrôle local et ce contrôle réussissent mais que l’adresse publique renvoie encore une erreur 502, vérifier la cible et les journaux dans le projet Caddy séparé.
 
 Le port publié sur `127.0.0.1` est accessible depuis l’hôte Docker. Depuis un conteneur Caddy, `127.0.0.1` désigne ce conteneur, pas l’hôte : utiliser un raccordement réseau adapté, par exemple un réseau Docker partagé avec l’application, mais pas avec la base. Ne pas modifier l’adresse d’écoute à `0.0.0.0` sans avoir prévu le filtrage et la confiance des proxies.
 

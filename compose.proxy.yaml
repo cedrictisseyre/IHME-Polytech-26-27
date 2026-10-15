@@ -1,0 +1,12 @@
+services:
+  app:
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - ihme-app
+
+networks:
+  proxy:
+    external: true
+    name: proxy
