@@ -11,7 +11,7 @@ export class ApiError extends Error {
 export async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(`${import.meta.env.BASE_URL}api${path}`, {
       ...options, credentials: 'same-origin', cache: 'no-store',
       headers: { ...(options.body ? { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken } : {}), ...options.headers },
       body: options.body ? JSON.stringify(options.body) : undefined

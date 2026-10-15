@@ -3,9 +3,10 @@ import { api, refreshSession } from './api.js';
 import Teacher from './Teacher.jsx';
 
 const steps = ['Vos coordonnées', 'Le bilan', 'Vérification'];
+const baseUrl = import.meta.env.BASE_URL;
 
 export function Header({ teacher = false }) {
-  return <header className="site-header"><a className="brand" href="/" aria-label="Accueil du bilan"><span className="brand-mark">P<span>26</span></span><span>POLYTECH<span className="brand-caption">Atelier web & IA · 2026–2027</span></span></a><a className="nav-link" href={teacher ? '/' : '/enseignant'}>{teacher ? '← Formulaire étudiant' : 'Espace enseignant ↗'}</a></header>;
+  return <header className="site-header"><a className="brand" href={baseUrl} aria-label="Accueil du bilan"><span className="brand-mark">P<span>26</span></span><span>POLYTECH<span className="brand-caption">Atelier web & IA · 2026–2027</span></span></a><a className="nav-link" href={teacher ? baseUrl : `${baseUrl}enseignant`}>{teacher ? '← Formulaire étudiant' : 'Espace enseignant ↗'}</a></header>;
 }
 
 export function ErrorMessage({ error }) {
@@ -86,7 +87,7 @@ function Student({ questionnaire }) {
 }
 
 export default function App() {
-  const teacherPage = window.location.pathname === '/enseignant';
+  const teacherPage = window.location.pathname.replace(/\/$/, '') === `${baseUrl}enseignant`;
   const [initial, setInitial] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {

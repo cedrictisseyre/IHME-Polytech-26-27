@@ -52,6 +52,35 @@ test('API avec une vraie base PostgreSQL isolée', { skip: !databaseUrl && 'Déf
       await request(app).post('/api/submissions').send(submission()).expect(403);
     });
 
+    await context.test('API et redirection isolées sous /ihme', async () => {
+      const app = createApp(pool, { ...config, basePath: '/ihme' });
+      await request(app).get('/ihme?test=1').expect(308).expect('Location', '/ihme/?test=1');
+      await request(app).get('/ihme/api/health').expect(200);
+      await request(app).get('/api/health').expect(404);
+      await request(app).get('/ihme-autre/api/health').expect(404);
+      const questionnaire = await request(app).get('/ihme/api/questionnaire').expect(200);
+      assert.equal(questionnaire.body.questions.length, 12);
+      const agent = request.agent(app);
+      const session = await agent.get('/ihme/api/session').expect(200);
+      assert.match(session.headers['set-cookie'][0], /Path=\/ihme;/);
+      const result = await agent.post('/ihme/api/submissions').set('X-CSRF-Token', session.body.csrfToken).set('Origin', config.origin).send(submission()).expect(201);
+      assert.equal(result.body.questions.length, 12);
+    });
+
+    await context.test('session et connexion HTTPS derrière le proxy sous /ihme', async () => {
+      const app = createApp(pool, { ...config, basePath: '/ihme', origin: 'https://csbgestion.jcloud-ver-jpe.ik-server.com', secure: true, trustProxy: 1 });
+      const session = await request(app).get('/ihme/api/session').set('X-Forwarded-Proto', 'https').expect(200);
+      assert.match(session.headers['set-cookie'][0], /Path=\/ihme;/);
+      assert.match(session.headers['set-cookie'][0], /; Secure/);
+      const cookie = session.headers['set-cookie'][0].split(';')[0];
+      const login = await request(app).post('/ihme/api/teacher/login').set('X-Forwarded-Proto', 'https').set('Origin', 'https://csbgestion.jcloud-ver-jpe.ik-server.com').set('Cookie', cookie).set('X-CSRF-Token', session.body.csrfToken).send({ username: 'enseignant', password: 'mot-de-passe-de-test' }).expect(200);
+      const teacherCookie = login.headers['set-cookie'][0].split(';')[0];
+      await request(app).get('/ihme/api/teacher/dashboard').set('X-Forwarded-Proto', 'https').set('Cookie', teacherCookie).expect(200);
+      const logout = await request(app).post('/ihme/api/teacher/logout').set('X-Forwarded-Proto', 'https').set('Cookie', teacherCookie).set('X-CSRF-Token', login.body.csrfToken).send({}).expect(204);
+      assert.match(logout.headers['set-cookie'][0], /Path=\/ihme;/);
+      await request(app).get('/ihme/api/teacher/dashboard').set('X-Forwarded-Proto', 'https').set('Cookie', teacherCookie).expect(401);
+    });
+
     await context.test('CSRF, origine étrangère et authentification contrôlés', async () => {
       const app = createApp(pool, config);
       const client = await newAgent(app);

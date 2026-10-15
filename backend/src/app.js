@@ -47,7 +47,7 @@ export function createApp(pool, config) {
   app.use('/api', session({
     name: 'diagnostic.sid', store: new PostgresSessionStore(pool), secret: config.secret,
     resave: false, saveUninitialized: false, rolling: true,
-    cookie: { httpOnly: true, sameSite: 'strict', secure: config.secure, maxAge: 8 * 60 * 60 * 1000 }
+    cookie: { path: config.basePath || '/', httpOnly: true, sameSite: 'strict', secure: config.secure, maxAge: 8 * 60 * 60 * 1000 }
   }));
   app.get('/api/session', async (request, response) => {
     if (!request.session.csrf) request.session.csrf = randomBytes(32).toString('hex');
@@ -75,7 +75,7 @@ export function createApp(pool, config) {
   });
   app.post('/api/teacher/logout', requireTeacher, async (request, response) => {
     await new Promise((resolve, reject) => request.session.destroy(error => error ? reject(error) : resolve()));
-    response.clearCookie('diagnostic.sid', { httpOnly: true, sameSite: 'strict', secure: config.secure });
+    response.clearCookie('diagnostic.sid', { path: config.basePath || '/', httpOnly: true, sameSite: 'strict', secure: config.secure });
     response.status(204).end();
   });
   app.get('/api/teacher/dashboard', requireTeacher, async (request, response) => response.json(await readDashboard(pool)));
@@ -101,5 +101,11 @@ export function createApp(pool, config) {
     console.error('Échec de requête :', error.code || error.name);
     response.status(503).json({ error: 'Service temporairement indisponible. Vos réponses ne sont pas effacées ; vous pouvez réessayer.' });
   });
-  return app;
+  if (!config.basePath) return app;
+  const mounted = express();
+  mounted.disable('x-powered-by');
+  mounted.enable('strict routing');
+  mounted.get(config.basePath, (request, response) => response.redirect(308, `${config.basePath}/${request.originalUrl.slice(config.basePath.length)}`));
+  mounted.use(config.basePath, app);
+  return mounted;
 }

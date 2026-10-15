@@ -67,6 +67,7 @@ docker compose down
 | Variable | Usage |
 | --- | --- |
 | `PUBLIC_ORIGIN` | Origine exacte de la page utilisée par les visiteurs, par exemple `https://diagnostic.example.org`. Aucune barre finale ni chemin. |
+| `APP_BASE_PATH` | Sous-chemin optionnel, par exemple `/ihme`, sans barre finale. Vide pour servir à la racine. Utilisé à la compilation Vite et par Express : reconstruire l’image après modification. |
 | `APP_PORT` | Port exposé par Compose, 43187 par défaut. Adapter aussi `PUBLIC_ORIGIN` si ce port change. |
 | `APP_BIND_ADDRESS` | Adresse d’exposition Compose, `127.0.0.1` par défaut pour les tests locaux. Utiliser `0.0.0.0` uniquement pour un accès réseau volontaire. |
 | `PORT` | Port d’écoute Express hors Compose. Compose fixe 3000 à l’intérieur du conteneur. |
@@ -145,6 +146,40 @@ L’application est livrée comme une image Docker standard et une base PostgreS
 6. Vérifiez `/api/health`, le formulaire, une soumission d’essai, les agrégats et la déconnexion enseignant. Vérifiez la persistance après remplacement du conteneur.
 
 L’application doit pouvoir créer ses tables et index au premier démarrage. Le déploiement sur votre compte Infomaniak n’est pas automatisé ici : aucun accès à ce compte n’est nécessaire au fonctionnement local.
+
+## Installation sous `/ihme` sur le serveur existant
+
+L’adresse prévue est `https://csbgestion.jcloud-ver-jpe.ik-server.com/ihme/`. Le préfixe fait partie des routes Express, des liens React et des chemins des fichiers compilés. L’origine publique ne contient pas ce préfixe.
+
+Après publication des changements sur Git et récupération dans `/home/ihme`, modifier uniquement les paramètres correspondants dans le `.env` du serveur, sans régénérer les secrets :
+
+```dotenv
+APP_BASE_PATH=/ihme
+PUBLIC_ORIGIN=https://csbgestion.jcloud-ver-jpe.ik-server.com
+COOKIE_SECURE=true
+APP_BIND_ADDRESS=127.0.0.1
+APP_PORT=43187
+UNIVERSITY_EMAIL_DOMAINS=etu.univ-amu.fr,univ-amu.fr
+```
+
+Si Caddy est le proxy de confiance qui contacte directement Express, régler `TRUST_PROXY=1`. Si le trajet diffère, déterminer ce réglage avant l’ouverture publique. Le dernier proxy doit transmettre correctement le protocole HTTPS d’origine ; les cookies sécurisés ne seront pas créés si Express ne reconnaît pas HTTPS. Ne pas ouvrir un accès direct non filtré qui permettrait d’usurper les en-têtes de proxy.
+
+Construire et recréer uniquement l’application, sans arrêter les autres projets ni recréer la base :
+
+```sh
+cd /home/ihme
+git pull --ff-only origin main
+docker compose -p ihme config --quiet
+docker compose -p ihme up -d --build --no-deps --wait app
+docker compose -p ihme ps
+curl --fail http://127.0.0.1:43187/ihme/api/health
+```
+
+L’enseignant gère la configuration de Caddy séparément. Le contrat attendu est de transmettre `/ihme/…` à l’application **sans supprimer le préfixe**. Un routage qui retire `/ihme` serait incompatible. `/ihme` redirige vers `/ihme/` ; l’espace enseignant est sous `/ihme/enseignant`. Si nécessaire, le proxy peut effectuer lui-même la redirection de l’adresse sans barre finale.
+
+Le port publié sur `127.0.0.1` est accessible depuis l’hôte Docker. Depuis un conteneur Caddy, `127.0.0.1` désigne ce conteneur, pas l’hôte : utiliser un raccordement réseau adapté, par exemple un réseau Docker partagé avec l’application, mais pas avec la base. Ne pas modifier l’adresse d’écoute à `0.0.0.0` sans avoir prévu le filtrage et la confiance des proxies.
+
+Contrôles après raccordement : charger le formulaire et ses fichiers CSS / JavaScript, ouvrir `/ihme/enseignant`, se connecter, soumettre une réponse de test et vérifier le tableau de bord. Le contrôle de santé HTTP local valide le serveur et la base, pas la création des cookies HTTPS. Changer `APP_BASE_PATH` impose toujours une nouvelle compilation ; un simple redémarrage ne suffit pas.
 
 ## Données personnelles et exploitation
 

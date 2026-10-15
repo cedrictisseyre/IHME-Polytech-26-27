@@ -9,6 +9,9 @@ export function readConfig(environment = process.env) {
   if (!domains.length || domains.some(domain => !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/.test(domain))) throw new Error('UNIVERSITY_EMAIL_DOMAINS doit contenir des domaines valides séparés par des virgules.');
   const origin = new URL(environment.PUBLIC_ORIGIN || 'http://localhost:3000');
   if (!['http:', 'https:'].includes(origin.protocol)) throw new Error('PUBLIC_ORIGIN doit être une URL HTTP ou HTTPS.');
+  if (origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password) throw new Error('PUBLIC_ORIGIN doit contenir uniquement l’origine, sans chemin. Utilisez APP_BASE_PATH pour un sous-chemin.');
+  const basePath = environment.APP_BASE_PATH === '/' ? '' : environment.APP_BASE_PATH || '';
+  if (basePath && !/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(basePath)) throw new Error('APP_BASE_PATH doit être vide ou un chemin comme /ihme, sans barre finale.');
   const secure = environment.COOKIE_SECURE === 'true';
   if (origin.protocol === 'https:' && !secure) throw new Error('Activez COOKIE_SECURE=true avec une origine HTTPS.');
   if (origin.protocol === 'http:' && secure) throw new Error('COOKIE_SECURE=true nécessite HTTPS.');
@@ -18,5 +21,5 @@ export function readConfig(environment = process.env) {
   if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 365) throw new Error('RETENTION_DAYS doit être compris entre 1 et 365.');
   if (!Number.isInteger(trustProxy) || trustProxy < 0 || trustProxy > 10) throw new Error('TRUST_PROXY doit être compris entre 0 et 10.');
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT invalide.');
-  return { databaseUrl: environment.DATABASE_URL, databaseSsl: environment.DATABASE_SSL === 'true', databaseCaFile: environment.DATABASE_CA_FILE, secret: environment.SESSION_SECRET, passwordHash: environment.TEACHER_PASSWORD_HASH, username: environment.TEACHER_USERNAME || 'enseignant', domains, origin: origin.origin, secure, retentionDays, trustProxy, port, privacyContact: environment.PRIVACY_CONTACT };
+  return { databaseUrl: environment.DATABASE_URL, databaseSsl: environment.DATABASE_SSL === 'true', databaseCaFile: environment.DATABASE_CA_FILE, secret: environment.SESSION_SECRET, passwordHash: environment.TEACHER_PASSWORD_HASH, username: environment.TEACHER_USERNAME || 'enseignant', domains, origin: origin.origin, basePath, secure, retentionDays, trustProxy, port, privacyContact: environment.PRIVACY_CONTACT };
 }

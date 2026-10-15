@@ -22,4 +22,11 @@ test('configuration refuse les secrets exemples et incohérences HTTPS', async (
   assert.throws(() => readConfig({ ...valid, UNIVERSITY_EMAIL_DOMAINS: '' }));
   assert.throws(() => readConfig({ ...valid, PUBLIC_ORIGIN: 'https://exemple.fr', COOKIE_SECURE: 'false' }));
   assert.throws(() => readConfig({ ...valid, RETENTION_DAYS: '-1' }));
+  assert.equal(readConfig(valid).basePath, '');
+  assert.equal(readConfig({ ...valid, APP_BASE_PATH: '/' }).basePath, '');
+  assert.equal(readConfig({ ...valid, APP_BASE_PATH: '/ihme' }).basePath, '/ihme');
+  for (const basePath of ['ihme', '/ihme/', '//ihme', '/../ihme', '/ihme?x=1', '/ihme#test']) {
+    assert.throws(() => readConfig({ ...valid, APP_BASE_PATH: basePath }));
+  }
+  assert.throws(() => readConfig({ ...valid, PUBLIC_ORIGIN: 'https://exemple.fr/ihme', COOKIE_SECURE: 'true' }));
 });
