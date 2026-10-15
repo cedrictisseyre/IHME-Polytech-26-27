@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, refreshSession } from './api.js';
 import { ErrorMessage } from './App.jsx';
+import { TeacherClassrooms } from './Classrooms.jsx';
 
 const formatDate = date => date ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(date)) : 'Aucune réponse';
 const percentage = (count, total) => total ? Math.round(count * 100 / total) : 0;
@@ -49,6 +50,7 @@ export default function Teacher({ initialSession }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [privateView, setPrivateView] = useState(false);
+  const [liveView, setLiveView] = useState(false);
   const refreshRef = useRef(null);
   useEffect(() => {
     if (!authenticated) return;
@@ -95,9 +97,9 @@ export default function Teacher({ initialSession }) {
   if (!authenticated) return <main className="teacher-login"><div><span className="eyebrow">Espace enseignant</span><h1>Les acquis<br /><em>du groupe.</em></h1><p>Repérer les notions retenues après la séance 1 et préparer la suite. Aucun classement des étudiants.</p></div><form className="login-card" onSubmit={login}><h2>Connexion protégée</h2><p className="hint">Identifiants définis dans la configuration de l’application.</p><div className="field"><label htmlFor="username">Identifiant</label><input id="username" name="username" autoComplete="username" required maxLength={120} /></div><div className="field"><label htmlFor="password">Mot de passe</label><input id="password" name="password" type="password" autoComplete="current-password" required maxLength={256} /></div><ErrorMessage error={error} /><button className="button primary" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter →'}</button></form></main>;
   return <main className="dashboard">
     <div className="dashboard-heading"><div><span className="eyebrow">Séance 01 · Vue enseignant</span><h1>Les acquis après la séance 1.</h1><p>Actualisation toutes les 10 secondes. Les résultats servent à accompagner, pas à noter.</p></div><button className="button secondary" disabled={busy} onClick={logout}>Se déconnecter</button></div>
-    <div className="dashboard-toolbar"><div className="view-tabs"><button className={!privateView ? 'active' : ''} aria-pressed={!privateView} onClick={() => setPrivateView(false)}>Résultats agrégés</button><button className={privateView ? 'active' : ''} aria-pressed={privateView} onClick={() => setPrivateView(true)}>Participations confidentielles</button></div><button className="text-button" onClick={() => refreshRef.current?.()}>↻ Actualiser</button></div>
+    <div className="dashboard-toolbar"><div className="view-tabs"><button className={!privateView && !liveView ? 'active' : ''} aria-pressed={!privateView && !liveView} onClick={() => { setPrivateView(false); setLiveView(false); }}>Résultats agrégés</button><button className={privateView && !liveView ? 'active' : ''} aria-pressed={privateView && !liveView} onClick={() => { setPrivateView(true); setLiveView(false); }}>Participations confidentielles</button><button className={liveView ? 'active' : ''} aria-pressed={liveView} onClick={() => setLiveView(true)}>Séances en direct</button></div><button className="text-button" onClick={() => refreshRef.current?.()}>↻ Actualiser</button></div>
     <ErrorMessage error={error} />
-    {dashboard && <>
+    {liveView ? <TeacherClassrooms /> : dashboard && <>
       <section className="metrics"><div><span>Réponses enregistrées</span><strong>{dashboard.total}</strong></div><div><span>Dernière soumission</span><strong className="metric-date">{formatDate(dashboard.lastSubmission)}</strong></div><div><span>Dernière actualisation réussie</span><strong className="metric-date">{formatDate(dashboard.updatedAt)}</strong></div></section>
       {error && <p className="hint" role="status">Les données affichées correspondent à la dernière actualisation réussie.</p>}
       {privateView ? <PrivateStudents /> : <QuestionResults questions={dashboard.questions} />}

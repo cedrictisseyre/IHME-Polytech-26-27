@@ -17,6 +17,7 @@ export async function initializeDatabase(pool) {
     await client.query('SELECT pg_advisory_xact_lock(261012)');
     await client.query(await readFile(new URL('../sql/001_initial.sql', import.meta.url), 'utf8'));
     await client.query(await readFile(new URL('../sql/002_simplified_profile.sql', import.meta.url), 'utf8'));
+    await client.query(await readFile(new URL('../sql/003_live_classrooms.sql', import.meta.url), 'utf8'));
     const fingerprint = createHash('sha256').update(JSON.stringify(questions)).digest('hex');
     const existing = await client.query('SELECT fingerprint FROM questionnaire_versions WHERE version = $1', [VERSION]);
     if (existing.rows[0] && existing.rows[0].fingerprint !== fingerprint) throw new Error('Questionnaire modifié : créez une nouvelle VERSION pour préserver les réponses existantes.');
@@ -38,5 +39,8 @@ export async function initializeDatabase(pool) {
 export async function purgeExpiredData(pool, retentionDays) {
   const result = await pool.query("DELETE FROM submissions WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')", [retentionDays]);
   await pool.query('DELETE FROM teacher_sessions WHERE expires_at < NOW()');
+  await pool.query("DELETE FROM live_answers WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')", [retentionDays]);
+  await pool.query("DELETE FROM students WHERE last_seen_at < NOW() - ($1::int * INTERVAL '1 day')", [retentionDays]);
+  await pool.query("DELETE FROM classrooms WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')", [retentionDays]);
   return result.rowCount;
 }

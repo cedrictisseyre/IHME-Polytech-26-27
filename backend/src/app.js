@@ -10,6 +10,7 @@ import { publicQuestionnaire, VERSION } from './questionnaire.js';
 import { validateSubmission } from './validation.js';
 import { verifyPassword } from './password.js';
 import { HttpError, saveSubmission, readDashboard, readStudents } from './repository.js';
+import { installClassroomRoutes } from './classrooms.js';
 
 const regenerate = request => new Promise((resolve, reject) => request.session.regenerate(error => error ? reject(error) : resolve()));
 const saveSession = request => new Promise((resolve, reject) => request.session.save(error => error ? reject(error) : resolve()));
@@ -42,13 +43,13 @@ export function createApp(pool, config) {
     await pool.query('SELECT 1');
     response.json({ status: 'ok' });
   });
-  app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 1200, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Trop de requêtes. Patientez avant de réessayer.' } }));
   app.use('/api', express.json({ limit: '48kb' }));
   app.use('/api', session({
     name: 'diagnostic.sid', store: new PostgresSessionStore(pool), secret: config.secret,
     resave: false, saveUninitialized: false, rolling: true,
     cookie: { path: config.basePath || '/', httpOnly: true, sameSite: 'strict', secure: config.secure, maxAge: 8 * 60 * 60 * 1000 }
   }));
+  app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 1200, keyGenerator: request => request.sessionID, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Trop de requêtes. Patientez avant de réessayer.' } }));
   app.get('/api/session', async (request, response) => {
     if (!request.session.csrf) request.session.csrf = randomBytes(32).toString('hex');
     await saveSession(request);
@@ -84,11 +85,12 @@ export function createApp(pool, config) {
     if (!Number.isInteger(page) || page < 1 || page > 10000) throw new HttpError(400, 'Page invalide.');
     response.json(await readStudents(pool, page));
   });
+  installClassroomRoutes(app, pool, config, { requireTeacher, regenerate, saveSession });
   app.use('/api', (request, response) => response.status(404).json({ error: 'Ressource introuvable.' }));
   const dist = fileURLToPath(new URL('../../frontend/dist/', import.meta.url));
   if (existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: '1h' }));
-    app.get(['/', '/enseignant'], (request, response) => {
+    app.get(['/', '/enseignant', '/seance'], (request, response) => {
       response.set('Cache-Control', 'no-cache');
       response.sendFile(`${dist}/index.html`);
     });

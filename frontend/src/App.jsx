@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, refreshSession } from './api.js';
 import Teacher from './Teacher.jsx';
+import { StudentClassrooms } from './Classrooms.jsx';
 
 const steps = ['Vos coordonnées', 'Le bilan', 'Vérification'];
 const baseUrl = import.meta.env.BASE_URL;
 
 export function Header({ teacher = false }) {
-  return <header className="site-header"><a className="brand" href={baseUrl} aria-label="Accueil du bilan"><span className="brand-mark">P<span>26</span></span><span>POLYTECH<span className="brand-caption">Atelier web & IA · 2026–2027</span></span></a><a className="nav-link" href={teacher ? baseUrl : `${baseUrl}enseignant`}>{teacher ? '← Formulaire étudiant' : 'Espace enseignant ↗'}</a></header>;
+  return <header className="site-header"><a className="brand" href={baseUrl} aria-label="Accueil du bilan"><span className="brand-mark">P<span>26</span></span><span>POLYTECH<span className="brand-caption">Atelier web & IA · 2026–2027</span></span></a><nav className="header-links" aria-label="Navigation principale"><a className="nav-link" href={`${baseUrl}seance`}>Séance en direct</a><a className="nav-link" href={teacher ? baseUrl : `${baseUrl}enseignant`}>{teacher ? '← Formulaire étudiant' : 'Espace enseignant ↗'}</a></nav></header>;
 }
 
 export function ErrorMessage({ error }) {
@@ -88,6 +89,7 @@ function Student({ questionnaire }) {
 
 export default function App() {
   const teacherPage = window.location.pathname.replace(/\/$/, '') === `${baseUrl}enseignant`;
+  const livePage = window.location.pathname.replace(/\/$/, '') === `${baseUrl}seance`;
   const [initial, setInitial] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -95,5 +97,5 @@ export default function App() {
     Promise.all([api('/questionnaire'), refreshSession()]).then(([questionnaire, session]) => { if (active) setInitial({ questionnaire, session }); }).catch(failure => { if (active) setError(failure); });
     return () => { active = false; };
   }, []);
-  return <><Header teacher={teacherPage} />{error ? <main className="loading-panel"><ErrorMessage error={error} /><button className="button primary" onClick={() => window.location.reload()}>Réessayer</button></main> : !initial ? <main className="loading-panel" role="status">Préparation du bilan…</main> : teacherPage ? <Teacher questionnaire={initial.questionnaire} initialSession={initial.session} /> : <Student questionnaire={initial.questionnaire} />}<footer className="site-footer"><span>Polytech · Bilan de la séance 1 · 2026–2027</span><span>Comprendre · Construire · Vérifier</span></footer></>;
+  return <><Header teacher={teacherPage} />{error ? <main className="loading-panel"><ErrorMessage error={error} /><button className="button primary" onClick={() => window.location.reload()}>Réessayer</button></main> : !initial ? <main className="loading-panel" role="status">Préparation du bilan…</main> : teacherPage ? <Teacher questionnaire={initial.questionnaire} initialSession={initial.session} /> : livePage ? <StudentClassrooms privacy={initial.questionnaire.privacy} /> : <Student questionnaire={initial.questionnaire} />}<footer className="site-footer"><span>Polytech · Bilan et séances en direct · 2026–2027</span><span>Comprendre · Construire · Vérifier</span></footer></>;
 }

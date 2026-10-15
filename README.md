@@ -15,6 +15,8 @@ Le questionnaire s’appuie sur les 37 diapositives de `Seance_1_Diaporama.pptx`
 
 ## Architecture
 
+Le [diagramme entité-relation de la base](docs/diagramme-bdd.md) décrit les tables, clés et règles de conservation.
+
 ```text
 Navigateur (React, fichiers préparés par Vite)
                   │ HTTP, même origine
@@ -60,7 +62,27 @@ docker compose down
 
 `down` conserve le volume. **Ne pas ajouter `-v` pour un simple arrêt : cela supprime les données.** Ne changez pas le mot de passe de PostgreSQL dans `.env` sans aussi le modifier dans une base déjà initialisée.
 
-## Configuration
+## Séances en direct et reconnexion des étudiants
+
+Le bilan initial reste disponible sans compte. Le nouveau mode ne modifie ni ses questions ni ses réponses existantes.
+
+1. Connectez-vous à l’espace enseignant, puis ouvrez **Séances en direct**.
+2. Créez une séance et communiquez le code de huit caractères au groupe.
+3. Les étudiants ouvrent **Séance en direct** dans le menu (`/seance`, ou `/ihme/seance` avec le préfixe), créent leur compte avec prénom, nom, e-mail universitaire et un mot de passe d’au moins dix caractères, puis saisissent le code.
+4. Préparez un brouillon avec trois choix, la bonne réponse et une explication. « Je ne sais pas » est ajouté automatiquement. L’éditeur est confidentiel : ne le projetez pas.
+5. Cliquez sur **Diffuser**. La question apparaît chez les inscrits à la prochaine actualisation (toutes les dix secondes). Diffuser une nouvelle question clôture automatiquement la précédente ; vous pouvez aussi la clôturer manuellement.
+6. Chaque étudiant répond une fois ; son corrigé apparaît seulement après sauvegarde. Les compteurs par choix sont actualisés dans la vue enseignante. Les corrigés enseignant sont masqués par défaut pour la projection.
+7. Après déconnexion ou sur un autre appareil, l’étudiant se reconnecte avec son e-mail et son mot de passe : il retrouve ses séances et ses réponses, sans ressaisir son identité.
+
+Les sessions navigateur sont stockées dans PostgreSQL et expirent après huit heures sans activité. Fermer puis rouvrir la page conserve la connexion tant que le cookie et la session sont valides. Ne pas utiliser un navigateur partagé sans se déconnecter. La connexion enseignante et la connexion étudiante utilisent la même session navigateur : tester les deux rôles avec des navigateurs ou profils distincts.
+
+**Sécurité et limites :** connaître l’e-mail seul ne suffit pas pour se reconnecter. Les mots de passe sont hachés avec scrypt. Les domaines configurés sont contrôlés à l’inscription, mais aucun e-mail de vérification n’est envoyé : l’identité reste déclarative. Ne jamais demander le mot de passe universitaire. Il n’existe pas encore de récupération de mot de passe par e-mail. Les anciens bilans sans compte ne sont pas automatiquement revendiqués par une inscription utilisant le même e-mail. Le mode direct est non noté.
+
+La migration additive `003_live_classrooms.sql` s’applique au démarrage, sans supprimer les réponses existantes. Aucune nouvelle variable ni dépendance n’est nécessaire. Après sauvegarde habituelle de la base, mettre à jour l’application avec `docker compose -p ihme up -d --build --no-deps --wait app`. Ne pas supprimer le volume PostgreSQL. La configuration sous `/ihme` reste valable.
+
+La purge utilise `RETENTION_DAYS` (90 par défaut) : comptes sans connexion/lecture du profil depuis ce délai, séances dépassant ce délai et réponses anciennes. Une séance supprimée entraîne la suppression de ses réponses même si un étudiant s’est reconnecté récemment. Consultez le diagramme pour les cascades exactes.
+
+## Variables de configuration
 
 [.env.example](.env.example) répertorie les variables. Les valeurs exemples ne permettent volontairement pas de démarrer sans configuration des secrets.
 
