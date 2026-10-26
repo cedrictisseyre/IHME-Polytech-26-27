@@ -89,6 +89,7 @@ La purge utilise `RETENTION_DAYS` (90 par défaut) : comptes sans connexion/lect
 | Variable | Usage |
 | --- | --- |
 | `PUBLIC_ORIGIN` | Origine exacte de la page utilisée par les visiteurs, par exemple `https://diagnostic.example.org`. Aucune barre finale ni chemin. |
+| `ADDITIONAL_PUBLIC_ORIGINS` | Autres origines autorisées pour les écritures, séparées par des virgules, sans chemin. Même protocole que `PUBLIC_ORIGIN`. Vide par défaut. |
 | `APP_BASE_PATH` | Sous-chemin optionnel, par exemple `/ihme`, sans barre finale. Vide pour servir à la racine. Utilisé à la compilation Vite et par Express : reconstruire l’image après modification. |
 | `APP_PORT` | Port exposé par Compose, 43187 par défaut. Adapter aussi `PUBLIC_ORIGIN` si ce port change. |
 | `APP_BIND_ADDRESS` | Adresse d’exposition Compose, `127.0.0.1` par défaut pour les tests locaux. Utiliser `0.0.0.0` uniquement pour un accès réseau volontaire. |
@@ -214,6 +215,37 @@ Le résultat attendu est `{"status":"ok"}`. Si le contrôle local et ce contrôl
 Le port publié sur `127.0.0.1` est accessible depuis l’hôte Docker. Depuis un conteneur Caddy, `127.0.0.1` désigne ce conteneur, pas l’hôte : utiliser un raccordement réseau adapté, par exemple un réseau Docker partagé avec l’application, mais pas avec la base. Ne pas modifier l’adresse d’écoute à `0.0.0.0` sans avoir prévu le filtrage et la confiance des proxies.
 
 Contrôles après raccordement : charger le formulaire et ses fichiers CSS / JavaScript, ouvrir `/ihme/enseignant`, se connecter, soumettre une réponse de test et vérifier le tableau de bord. Le contrôle de santé HTTP local valide le serveur et la base, pas la création des cookies HTTPS. Changer `APP_BASE_PATH` impose toujours une nouvelle compilation ; un simple redémarrage ne suffit pas.
+
+### Accès simultané sur les deux domaines
+
+La même application et la même base peuvent servir ces deux adresses :
+
+- `https://csbgestion.jcloud-ver-jpe.ik-server.com/ihme/`
+- `https://gestion.tenshodojo.fr/ihme/`
+
+Dans le `.env` du serveur, conserver les secrets et définir :
+
+```dotenv
+APP_BASE_PATH=/ihme
+PUBLIC_ORIGIN=https://csbgestion.jcloud-ver-jpe.ik-server.com
+ADDITIONAL_PUBLIC_ORIGINS=https://gestion.tenshodojo.fr
+COOKIE_SECURE=true
+```
+
+Reconstruire l’application avec la commande Compose ci-dessus. La liste autorise les écritures depuis les deux origines avec la protection CSRF habituelle.
+
+Dans le Caddyfile existant, ajouter ces règles **dans chacun des deux blocs de domaine**, avant le routage de l’autre application. Conserver les autres routes :
+
+```caddyfile
+redir /ihme /ihme/ 308
+handle /ihme/* {
+    reverse_proxy ihme-app:3000
+}
+```
+
+Le DNS de chaque domaine doit pointer vers l’entrée qui dessert Caddy et HTTPS doit fonctionner pour chacun. Valider le Caddyfile avant de recharger Caddy. Ne pas remplacer les blocs existants : d’autres applications peuvent utiliser ces domaines.
+
+Les données et les comptes sont communs. Les cookies restent propres à chaque domaine : il faut se connecter séparément sur chaque adresse. Les liens et appels API utilisent le préfixe `/ihme` sur le domaine ouvert.
 
 ## Données personnelles et exploitation
 

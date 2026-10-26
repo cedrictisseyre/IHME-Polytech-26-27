@@ -26,7 +26,7 @@ function csrfProtection(config) {
     const token = request.get('X-CSRF-Token') || '';
     const expected = request.session.csrf || '';
     const origin = request.get('Origin');
-    if ((origin && origin !== config.origin) || !expected || Buffer.byteLength(token) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
+    if ((origin && !(config.origins || [config.origin]).includes(origin)) || !expected || Buffer.byteLength(token) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
       return response.status(403).json({ error: 'Session expirée ou requête non autorisée. Rechargez la page ; vos réponses restent affichées.' });
     }
     next();

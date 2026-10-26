@@ -30,3 +30,12 @@ test('configuration refuse les secrets exemples et incohérences HTTPS', async (
   }
   assert.throws(() => readConfig({ ...valid, PUBLIC_ORIGIN: 'https://exemple.fr/ihme', COOKIE_SECURE: 'true' }));
 });
+
+test('origines supplémentaires explicites et cohérentes avec HTTPS', async () => {
+  const valid = { DATABASE_URL: 'postgresql://localhost/diagnostic', SESSION_SECRET: 'a'.repeat(48), TEACHER_PASSWORD_HASH: await hashPassword('mot-de-passe-de-test'), UNIVERSITY_EMAIL_DOMAINS: 'universite.test', PRIVACY_CONTACT: 'contact@universite.test', PUBLIC_ORIGIN: 'https://csbgestion.jcloud-ver-jpe.ik-server.com', COOKIE_SECURE: 'true' };
+  assert.deepEqual(readConfig(valid).origins, [valid.PUBLIC_ORIGIN]);
+  assert.deepEqual(readConfig({ ...valid, ADDITIONAL_PUBLIC_ORIGINS: ' https://gestion.tenshodojo.fr,https://gestion.tenshodojo.fr ' }).origins, [valid.PUBLIC_ORIGIN, 'https://gestion.tenshodojo.fr']);
+  for (const value of ['https://gestion.tenshodojo.fr/ihme', 'https://user:password@gestion.tenshodojo.fr', 'http://gestion.tenshodojo.fr', '*', 'null']) {
+    assert.throws(() => readConfig({ ...valid, ADDITIONAL_PUBLIC_ORIGINS: value }));
+  }
+});
